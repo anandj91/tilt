@@ -5,7 +5,7 @@
 #include <memory>
 #include <utility>
 
-#include "tilt/pass/visitor.h"
+#include "tilt/pass/irpass.h"
 #include "tilt/builder/tilder.h"
 
 using namespace std;
@@ -16,16 +16,13 @@ template<typename CtxTy, typename InExprTy, typename OutExprTy>
 class IRGen;
 
 template<typename InExprTy, typename OutExprTy>
-class IRGenCtx {
+class IRGenCtx : public IRPassCtx<InExprTy> {
 protected:
     IRGenCtx(Sym sym, const map<Sym, InExprTy>* in_sym_tbl, map<Sym, OutExprTy>* out_sym_tbl) :
-        sym(sym), in_sym_tbl(in_sym_tbl), out_sym_tbl(out_sym_tbl)
+        IRPassCtx<InExprTy>(sym, in_sym_tbl), out_sym_tbl(out_sym_tbl)
     {}
 
-    Sym sym;
-    const map<Sym, InExprTy>* in_sym_tbl;
     map<Sym, OutExprTy>* out_sym_tbl;
-    map<Sym, Sym> sym_map;
     OutExprTy val;
 
     template<typename CtxTy, typename InTy, typename OutTy>
@@ -33,10 +30,8 @@ protected:
 };
 
 template<typename CtxTy, typename InExprTy, typename OutExprTy>
-class IRGen : public Visitor {
+class IRGen : public IRPass<CtxTy, InExprTy> {
 protected:
-    virtual CtxTy& ctx() = 0;
-
     virtual OutExprTy visit(const Symbol&) = 0;
     virtual OutExprTy visit(const Out&) = 0;
     virtual OutExprTy visit(const Beat&) = 0;
@@ -98,56 +93,43 @@ protected:
     void Visit(const Call& expr) final { val() = visit(expr); }
     void Visit(const LoopNode& expr) final { val() = visit(expr); }
 
-    CtxTy& switch_ctx(CtxTy& new_ctx) { swap(new_ctx, ctx()); return new_ctx; }
-
-    Sym tmp_sym(const Symbol& symbol)
-    {
-        shared_ptr<Symbol> tmp_sym(const_cast<Symbol*>(&symbol), [](Symbol*) {});
-        return tmp_sym;
-    }
-
-    OutExprTy get_expr(const Sym& sym) { auto& m = *(ctx().out_sym_tbl); return m.at(sym); }
-    OutExprTy get_expr(const Symbol& symbol) { return get_expr(tmp_sym(symbol)); }
+    OutExprTy get_expr(const Sym& sym) { auto& m = *(this->ctx().out_sym_tbl); return m.at(sym); }
+    OutExprTy get_expr(const Symbol& symbol) { return get_expr(this->tmp_sym(symbol)); }
 
     virtual void set_expr(const Sym& sym, OutExprTy val)
     {
-        set_sym(sym, sym);
-        auto& m = *(ctx().out_sym_tbl);
+        this->set_sym(sym, sym);
+        auto& m = *(this->ctx().out_sym_tbl);
         m[sym] = val;
     }
-    void set_expr(const Symbol& symbol, OutExprTy val) { set_expr(tmp_sym(symbol), val); }
+    void set_expr(const Symbol& symbol, OutExprTy val) { set_expr(this->tmp_sym(symbol), val); }
 
-    Sym& get_sym(const Sym& in_sym) { return ctx().sym_map.at(in_sym); }
-    Sym& get_sym(const Symbol& symbol) { return get_sym(tmp_sym(symbol)); }
-    void set_sym(const Sym& in_sym, const Sym out_sym) { ctx().sym_map[in_sym] = out_sym; }
-    void set_sym(const Symbol& in_symbol, const Sym out_sym) { set_sym(tmp_sym(in_symbol), out_sym); }
-
-    OutExprTy& val() { return ctx().val; }
+    OutExprTy& val() { return this->ctx().val; }
 
     OutExprTy eval(const InExprTy expr)
     {
         OutExprTy val = nullptr;
 
-        swap(val, ctx().val);
+        swap(val, this->ctx().val);
         expr->Accept(*this);
-        swap(ctx().val, val);
+        swap(this->ctx().val, val);
 
         return val;
     }
 
     void Visit(const Symbol& symbol) final
     {
-        auto tmp = tmp_sym(symbol);
+        auto tmp = this->tmp_sym(symbol);
 
-        if (ctx().sym_map.find(tmp) == ctx().sym_map.end()) {
-            auto expr = ctx().in_sym_tbl->at(tmp);
+        if (this->ctx().sym_map.find(tmp) == this->ctx().sym_map.end()) {
+            auto expr = this->ctx().in_sym_tbl->at(tmp);
 
-            swap(ctx().sym, tmp);
+            swap(this->ctx().sym, tmp);
             auto value = eval(expr);
-            swap(tmp, ctx().sym);
+            swap(tmp, this->ctx().sym);
 
             auto sym_clone = tilder::_sym(symbol);
-            set_sym(tmp, sym_clone);
+            this->set_sym(tmp, sym_clone);
             this->set_expr(sym_clone, value);
         }
 
