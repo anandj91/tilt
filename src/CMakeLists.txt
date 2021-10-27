@@ -1,6 +1,7 @@
 set(SRC_FILES
     ir/ir.cpp
     builder/tilder.cpp
+    builder/quilt.cpp
     pass/printer.cpp
     pass/codegen/loopgen.cpp
     pass/codegen/llvmgen.cpp
