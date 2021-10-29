@@ -35,16 +35,17 @@ typedef function<Expr(Expr, Expr, Expr, Expr)> AccTy;
 
 struct Reduce : public ValNode {
     Sym lstream;
-    Val state;
+    Expr state;
     AccTy acc;
 
-    Reduce(Sym lstream, Val state, AccTy acc) :
+    Reduce(Sym lstream, Expr state, AccTy acc) :
         ValNode(state->type.dtype), lstream(lstream), state(state), acc(acc)
     {
         auto st = make_shared<Symbol>("st", Type(types::TIME));
         auto et = make_shared<Symbol>("et", Type(types::TIME));
         auto data = make_shared<Symbol>("data", Type(lstream->type.dtype));
         ASSERT(acc(state, st, et, data)->type == Type(state->type.dtype));
+        ASSERT(state->type.is_val());
     }
 
     void Accept(Visitor&) const final;

@@ -6,6 +6,7 @@ set(SRC_FILES
     pass/codegen/loopgen.cpp
     pass/codegen/llvmgen.cpp
     pass/codegen/vinstr.cpp
+    pass/opt/irpass.cpp
     engine/engine.cpp
 )
 
