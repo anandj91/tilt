@@ -18,7 +18,7 @@ int64_t get_ckpt(region_t* reg, ts_t t) { return t; }
 
 char* fetch(region_t* reg, ts_t t, const dur_t dur, const uint32_t bytes)
 {
-    return reg->data + (((t / dur) & reg->mask) * bytes);
+    return reg->data + ((t / dur) * bytes);
 }
 
 region_t* make_region(region_t* out_reg, region_t* in_reg, ts_t st, ts_t et)
